@@ -1,6 +1,11 @@
 name: SonarAnalysis
 
-on: [pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
