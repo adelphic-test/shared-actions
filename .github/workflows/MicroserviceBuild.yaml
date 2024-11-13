@@ -1,0 +1,90 @@
+name: Test And Build
+run-name: Test And Build number 2.0.${{ github.run_number }}
+
+on:
+  push:
+
+jobs:
+  discover-functions:
+    name: Discover Functions
+    runs-on: [self-hosted, X64, EKS]
+    outputs:
+      functions: ${{ steps.set-functions.outputs.functions }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Get Function Directories
+        id: set-functions
+        run: |
+          # List all directories in the functions folder
+          functions=$(find functions -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
+          echo "functions=$functions"
+          # Convert to JSON array format for matrix
+          functions_json=$(jq -c -R -s 'split("\n") | map(select(length > 0))' <<< "$functions")
+          echo "::set-output name=functions::$functions_json"
+
+  run-tests:
+    name: Run Tests
+    runs-on: [self-hosted, X64, EKS]
+    needs: discover-functions
+    strategy:
+      matrix:
+        function: ${{ fromJson(needs.discover-functions.outputs.functions) }}
+    defaults:
+      run:
+        working-directory: functions/${{ matrix.function }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Git access
+        run: git config --global url.https://${{ secrets.GHA_ACCESS_TOKEN }}@github.vianttech.com/.insteadOf https://github.vianttech.com/
+
+      - name: Setup Go
+        uses: actions/setup-go@main
+        with:
+          cache: false
+          go-version: "1.21"
+
+      - name: Test with Go
+        run: go test
+
+      # Uncomment below if you want to save test results for each function
+      # - name: Save Test Results
+      #   run: go test -json > TestResults-${{ matrix.function }}.json
+      # - name: Upload Go test results
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: Go-results-${{ matrix.function }}
+      #     path: functions/${{ matrix.function }}/TestResults-${{ matrix.function }}.json
+
+  build:
+    name: Build
+    runs-on: [self-hosted, X64, EKS]
+    needs: discover-functions
+    strategy:
+      matrix:
+        function: ${{ fromJson(needs.discover-functions.outputs.functions) }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@main
+        with:
+          go-version: "1.21"
+
+      - name: Setup Git access
+        run: git config --global url.https://${{ secrets.GHA_ACCESS_TOKEN }}@github.vianttech.com/.insteadOf https://github.vianttech.com/
+
+      - name: Set secrets
+        run: v ARTIFACTORY_PASSWORD secret/service/artifactory/drone value
+
+      - name: Package
+        run: |
+          make package target=${{ matrix.function }} build_number=2.0.${{ github.run_number }}
+
+      - name: Publish
+        run: |
+          make publish target=${{ matrix.function }} build_number=2.0.${{ github.run_number }}
