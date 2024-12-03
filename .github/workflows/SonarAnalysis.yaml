@@ -12,24 +12,57 @@ permissions:
   pull-requests: write
 
 jobs:
+  detect-java-repo:
+    runs-on: [self-hosted, X64, EKS]
+    outputs:
+      is_java_repo: ${{ steps.check-java-repo.outputs.is_java_repo }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Check for Java project files
+        id: check-java-repo
+        run: |
+          if [[ -f "pom.xml" || -f "settings.xml" ]]; then
+            echo "is_java_repo=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_java_repo=false" >> $GITHUB_OUTPUT
+          fi
+
   SonarAnalysis:
     runs-on: [self-hosted, X64, EKS]
-    
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
 
       - name: Get Secrets
         run: |
           v SONAR_TOKEN secret/service/sonar-qube/svc_sonar SONAR_TOKEN
           v SONAR_HOST_URL secret/service/sonar-qube/svc_sonar SONAR_HOST_URL
+          v ARTIFACTORY_PASSWORD secret/service/artifactory/drone value
+
+      - name: Set up JDK 8
+        if: needs.detect-java-repo.outputs.is_java_repo == 'true'
+        uses: actions/setup-java@v1
+        with:
+          java-version: 8
+
+      - name: Set up Maven
+        if: needs.detect-java-repo.outputs.is_java_repo == 'true'
+        uses: stCarolas/setup-maven@v4.5
+        with:
+          maven-version: 3.8.8
+
+      - name: Compile Mvn
+        if: needs.detect-java-repo.outputs.is_java_repo == 'true'
+        run: |
+          mvn -Dusername=${{ env.ARTIFACTORY_USERNAME }} -Dpassword=${{ env.ARTIFACTORY_PASSWORD }} clean compile -s settings.xml
 
       - uses: sonarsource/sonarqube-scan-action@v3
         env:
           SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
-
       # If you wish to fail your job when the Quality Gate is red, uncomment the
       # following lines. This would typically be used to fail a deployment.
       # - uses: sonarsource/sonarqube-quality-gate-action@master
