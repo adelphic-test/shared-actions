@@ -25,12 +25,15 @@ jobs:
         run: |
           if [[ -f "pom.xml" || -f "settings.xml" ]]; then
             echo "is_java_repo=true" >> $GITHUB_OUTPUT
+            echo "is_java_repo=true"
           else
             echo "is_java_repo=false" >> $GITHUB_OUTPUT
+            echo "is_java_repo=false"
           fi
 
   SonarAnalysis:
     runs-on: [self-hosted, X64, EKS]
+    needs: detect-java-repo
     steps:
       - uses: actions/checkout@v3
         with:
