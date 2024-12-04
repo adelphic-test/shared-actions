@@ -51,6 +51,13 @@ jobs:
         with:
           java-version: 8
 
+      - name: Add properties properties file
+        if: needs.detect-java-repo.outputs.is_java_repo == 'true'
+        run: |
+          echo "sonar.sources=src/main/java/" >> sonar-project.properties
+          echo "sonar.language=java" >> sonar-project.properties
+          echo "sonar.java.binaries=./target/classes" >> sonar-project.properties
+
       - name: Set up Maven
         if: needs.detect-java-repo.outputs.is_java_repo == 'true'
         uses: stCarolas/setup-maven@v4.5
