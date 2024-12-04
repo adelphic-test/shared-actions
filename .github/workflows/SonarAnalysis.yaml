@@ -43,6 +43,7 @@ jobs:
         run: |
           v SONAR_TOKEN secret/service/sonar-qube/svc_sonar SONAR_TOKEN
           v SONAR_HOST_URL secret/service/sonar-qube/svc_sonar SONAR_HOST_URL
+          v ARTIFACTORY_USERNAME secret/service/artifactory/drone user
           v ARTIFACTORY_PASSWORD secret/service/artifactory/drone value
 
       - name: Set up JDK 8
